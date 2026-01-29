@@ -316,8 +316,8 @@ void EInkDisplay::drawImage(const uint8_t* imageData, const uint16_t x, const ui
     return;
   }
 
-  // Calculate bytes per line for the image
-  const uint16_t imageWidthBytes = w / 8;
+  // Calculate bytes per line for the image (ceil to handle non-8-multiple widths)
+  const uint16_t imageWidthBytes = (w + 7) / 8;
 
   // Copy image data to frame buffer
   for (uint16_t row = 0; row < h; row++) {
