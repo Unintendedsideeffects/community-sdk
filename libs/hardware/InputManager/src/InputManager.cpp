@@ -34,6 +34,10 @@ void InputManager::begin() {
   analogSetAttenuation(ADC_11db);
 }
 
+// NOTE: The resistor ladder encodes only one button per ADC pin at a time.
+// If two front buttons are pressed simultaneously the ADC value falls between
+// calibrated ranges and returns -1 (no button detected). This is correct —
+// simultaneous front-button detection is a hardware limitation.
 int InputManager::getButtonFromADC(const int adcValue, const int ranges[], const int numButtons) {
   for (int i = 0; i < numButtons; i++) {
     if (ranges[i + 1] < adcValue && adcValue <= ranges[i]) {
