@@ -124,6 +124,10 @@ bool InputManager::wasReleased(const uint8_t buttonIndex) const {
   return releasedEvents & (1 << buttonIndex);
 }
 
+bool InputManager::peekReleased(const uint8_t buttonIndex) const {
+  return releasedEvents & (1 << buttonIndex);
+}
+
 bool InputManager::wasAnyReleased() const {
   return releasedEvents > 0;
 }
