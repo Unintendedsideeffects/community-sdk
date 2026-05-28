@@ -14,8 +14,18 @@ bool SDCardManager::begin() {
     if (Serial) Serial.printf("[%lu] [SD] SD card not detected\n", millis());
     initialized = false;
   } else {
-    if (Serial) Serial.printf("[%lu] [SD] SD card detected\n", millis());
-    initialized = true;
+    // sd.begin() can return true spuriously (e.g. MISO floating high).
+    // Verify the card is actually accessible by opening the root directory.
+    FsFile root = sd.open("/");
+    if (!root || !root.isDirectory()) {
+      root.close();
+      if (Serial) Serial.printf("[%lu] [SD] SD card reported ready but root not accessible\n", millis());
+      initialized = false;
+    } else {
+      root.close();
+      if (Serial) Serial.printf("[%lu] [SD] SD card detected\n", millis());
+      initialized = true;
+    }
   }
 
   return initialized;
