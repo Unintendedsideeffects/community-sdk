@@ -1209,6 +1209,46 @@ void EInkDisplay::deepSleep() {
   sendData(0x01);  // Enter deep sleep
 }
 
+bool EInkDisplay::supportsStripGrayscale() const {
+  // Only X4 supports tiled grayscale via setRamArea windowing.
+  // X3 has PTL but tiled grayscale is not yet implemented.
+  return !_x3Mode;
+}
+
+void EInkDisplay::writeGrayscalePlaneStrip(GrayPlane plane, const uint8_t* rows, uint16_t yStart, uint16_t numRows) {
+  if (rows == nullptr || numRows == 0) {
+    return;
+  }
+
+  if (_x3Mode) {
+    // X3: PTL is not yet implemented for tiled grayscale.
+    // Fall back to full-frame rendering in the caller.
+    return;
+  }
+
+  // X4: Use setRamArea windowing to stream a band directly to the controller.
+  // Controller RAM commands:
+  // - CMD_WRITE_RAM_BW (0x24) writes to the current-frame (B/W) RAM
+  // - CMD_WRITE_RAM_RED (0x26) writes to the alternate-frame (RED) RAM
+  //
+  // For grayscale:
+  // - LSB plane (dark gray, used for both A1/A2 values) → CMD_WRITE_RAM_BW (0x24)
+  // - MSB plane (light gray) → CMD_WRITE_RAM_RED (0x26)
+  //
+  // The band is rendered into caller's scratch (panelWidthBytes x numRows),
+  // we write it as-is (bytes are already inverted/mirrored per the caller's
+  // orientation). Each row is streamed individually to the controller.
+
+  const uint8_t ramCmd = (plane == GRAY_PLANE_LSB) ? CMD_WRITE_RAM_BW : CMD_WRITE_RAM_RED;
+
+  // Set window to the band [yStart, yStart + numRows) with full width
+  setRamArea(0, yStart, displayWidth, numRows);
+
+  // Stream the band data directly to controller RAM
+  const uint32_t bandSize = displayWidthBytes * numRows;
+  writeRamBuffer(ramCmd, rows, bandSize);
+}
+
 void EInkDisplay::saveFrameBufferAsPBM(const char* filename) {
 #ifndef ARDUINO
   const uint8_t* buffer = getFrameBuffer();

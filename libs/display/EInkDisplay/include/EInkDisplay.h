@@ -17,6 +17,9 @@ class EInkDisplay {
     FAST_REFRESH   // Fast refresh using custom LUT
   };
 
+  // Grayscale plane selector for tiled rendering
+  enum GrayPlane { GRAY_PLANE_LSB, GRAY_PLANE_MSB };
+
   // Set X3 panel geometry and mode (must be called before begin())
   void setDisplayX3();
 
@@ -60,6 +63,15 @@ class EInkDisplay {
   // EXPERIMENTAL: Windowed update - display only a rectangular region
   void displayWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h, bool turnOffScreen = false);
   void displayGrayBuffer(bool turnOffScreen = false);
+
+  // Tiled grayscale: stream one horizontal band of a grayscale plane to controller RAM.
+  // Renders each grayscale plane band-by-band into a small scratch and streams straight
+  // to the controller, leaving the BW framebuffer intact. X4 uses setRamArea windowing,
+  // X3 uses PTL (Partial Update). Returns false on X3 (not yet implemented for X3).
+  void writeGrayscalePlaneStrip(GrayPlane plane, const uint8_t* rows, uint16_t yStart, uint16_t numRows);
+
+  // Returns true if the controller supports strip grayscale rendering (X4 only).
+  bool supportsStripGrayscale() const;
 
   void refreshDisplay(RefreshMode mode = FAST_REFRESH, bool turnOffScreen = false);
 
