@@ -75,6 +75,29 @@ class EInkDisplay {
 
   void refreshDisplay(RefreshMode mode = FAST_REFRESH, bool turnOffScreen = false);
 
+  // Asynchronous variant of refreshDisplay(): issues the panel commands up to and
+  // including MASTER_ACTIVATION, then returns while the controller runs the waveform
+  // (roughly 300ms fast, up to ~2s full). The controller refreshes from its *own* RAM,
+  // so the caller's framebuffer is free to be redrawn as soon as this returns.
+  //
+  // Contract: every refreshDisplayAsync() must be followed by waitRefreshComplete()
+  // before any further panel command is issued. Nothing enforces this -- an unmatched
+  // call leaves the next SPI command racing an in-flight waveform.
+  //
+  // Only valid when supportsAsyncRefresh() is true. On X3 this falls back to the
+  // synchronous path and returns with the refresh already finished, so the pairing
+  // contract holds either way.
+  void refreshDisplayAsync(RefreshMode mode = FAST_REFRESH, bool turnOffScreen = false);
+
+  // Block until an in-flight refreshDisplayAsync() has finished. Safe to call when no
+  // refresh is outstanding: BUSY is already low, so it returns immediately.
+  void waitRefreshComplete();
+
+  // True when refreshDisplayAsync() actually defers work. False on X3, whose power
+  // sequencing interleaves BUSY waits between CMD04/CMD12 and so has no single
+  // trailing wait to lift out.
+  bool supportsAsyncRefresh() const;
+
   // Hint the X3 policy to run a one-shot full resync on next update.
   void requestResync(uint8_t settlePasses = 0);
 

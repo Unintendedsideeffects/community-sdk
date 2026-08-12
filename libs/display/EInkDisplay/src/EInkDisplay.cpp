@@ -1092,7 +1092,24 @@ void EInkDisplay::displayGrayBuffer(const bool turnOffScreen) {
   setCustomLUT(false);
 }
 
+bool EInkDisplay::supportsAsyncRefresh() const { return !_x3Mode; }
+
 void EInkDisplay::refreshDisplay(const RefreshMode mode, const bool turnOffScreen) {
+  // Composed from the two halves so the synchronous path stays the single source of
+  // truth: same commands, same order, just with the trailing BUSY wait spelled out.
+  refreshDisplayAsync(mode, turnOffScreen);
+  waitRefreshComplete();
+}
+
+void EInkDisplay::waitRefreshComplete() {
+  if (_x3Mode) {
+    // X3 refreshes synchronously inside displayBuffer(); BUSY is already settled.
+    return;
+  }
+  waitWhileBusy(" async refresh");
+}
+
+void EInkDisplay::refreshDisplayAsync(const RefreshMode mode, const bool turnOffScreen) {
   if (_x3Mode) {
     displayBuffer(mode, turnOffScreen);
     return;
@@ -1146,11 +1163,10 @@ void EInkDisplay::refreshDisplay(const RefreshMode mode, const bool turnOffScree
   sendCommand(CMD_DISPLAY_UPDATE_CTRL2);
   sendData(displayMode);
 
+  // Hands the waveform to the controller, which runs it from its own RAM. The caller's
+  // framebuffer is free from here; the panel is not, until waitRefreshComplete().
   sendCommand(CMD_MASTER_ACTIVATION);
-
-  // Wait for display to finish updating
-  if (Serial) Serial.printf("[%lu]   Waiting for display refresh...\n", millis());
-  waitWhileBusy(refreshType);
+  if (Serial) Serial.printf("[%lu]   Refresh started (%s), awaiting completion\n", millis(), refreshType);
 }
 
 void EInkDisplay::setCustomLUT(const bool enabled, const unsigned char* lutData) {
