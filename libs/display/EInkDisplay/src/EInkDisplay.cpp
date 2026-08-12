@@ -730,7 +730,7 @@ void EInkDisplay::cleanupGrayscaleBuffers(const uint8_t* bwBuffer) {
 }
 #endif
 
-void EInkDisplay::displayBuffer(RefreshMode mode, const bool turnOffScreen) {
+void EInkDisplay::displayBufferAsync(RefreshMode mode, const bool turnOffScreen) {
   if (!_x3Mode && !isScreenOn && !turnOffScreen) {
     // Force half refresh if screen is off (non-X3 only)
     mode = HALF_REFRESH;
@@ -917,15 +917,34 @@ void EInkDisplay::displayBuffer(RefreshMode mode, const bool turnOffScreen) {
   swapBuffers();
 #endif
 
-  // Refresh the display
-  refreshDisplay(mode, turnOffScreen);
+  // Start the waveform and return; finishDisplayBuffer() owns the wait and the tail.
+  refreshDisplayAsync(mode, turnOffScreen);
+}
+
+void EInkDisplay::finishDisplayBuffer() {
+  if (_x3Mode) {
+    // X3 completed synchronously inside displayBufferAsync().
+    return;
+  }
+
+  waitRefreshComplete();
 
 #ifdef EINK_DISPLAY_SINGLE_BUFFER_MODE
   // In single buffer mode always sync RED RAM after refresh to prepare for next fast refresh
-  // This ensures RED contains the currently displayed frame for differential comparison
+  // This ensures RED contains the currently displayed frame for differential comparison.
+  //
+  // This reads frameBuffer, which is why the async window's contract is "do not touch the
+  // framebuffer", not merely "do not touch the panel": redrawing before this runs would
+  // seed RED with a frame that was never displayed, and every later differential refresh
+  // would diff against that phantom.
   setRamArea(0, 0, displayWidth, displayHeight);
   writeRamBuffer(CMD_WRITE_RAM_RED, frameBuffer, bufferSize);
 #endif
+}
+
+void EInkDisplay::displayBuffer(const RefreshMode mode, const bool turnOffScreen) {
+  displayBufferAsync(mode, turnOffScreen);
+  finishDisplayBuffer();
 }
 
 // EXPERIMENTAL: Windowed update support

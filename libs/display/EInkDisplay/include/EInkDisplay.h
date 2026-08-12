@@ -60,6 +60,20 @@ class EInkDisplay {
 #endif
 
   void displayBuffer(RefreshMode mode = FAST_REFRESH, bool turnOffScreen = false);
+
+  // Asynchronous displayBuffer(): writes the framebuffer to controller RAM, starts the
+  // waveform, and returns. MUST be paired with finishDisplayBuffer().
+  //
+  // Between the two calls the caller may do any work that does NOT touch the framebuffer
+  // or the panel -- next-chapter layout is the intended case. Redrawing the framebuffer in
+  // that window corrupts the differential-refresh baseline; see finishDisplayBuffer().
+  //
+  // On X3 this completes synchronously and finishDisplayBuffer() is a no-op, so the pairing
+  // is valid on every device.
+  void displayBufferAsync(RefreshMode mode = FAST_REFRESH, bool turnOffScreen = false);
+
+  // Wait out an in-flight displayBufferAsync() and re-sync the differential baseline.
+  void finishDisplayBuffer();
   // EXPERIMENTAL: Windowed update - display only a rectangular region
   void displayWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h, bool turnOffScreen = false);
   void displayGrayBuffer(bool turnOffScreen = false);
