@@ -49,6 +49,17 @@ class InputManager {
   bool wasReleased(uint8_t buttonIndex) const;
 
   /**
+   * Returns true if the button went from pressed to unpressed between the last two #update() calls.
+   *
+   * Unlike #wasReleased(), this API is explicitly non-consuming and may be used for chord checks
+   * that need to inspect multiple button edges before normal input handling runs.
+   *
+   * @param buttonIndex the button indexes
+   * @return the button release state
+   */
+  bool peekReleased(uint8_t buttonIndex) const;
+
+  /**
    * Returns true if any button was released between the last two #update() calls
    *
    * @return  true if any button was released between the last two #update() calls
@@ -99,7 +110,7 @@ class InputManager {
   static constexpr int NUM_BUTTONS_2 = 2;
   static const int ADC_RANGES_2[];
 
-  static constexpr int ADC_NO_BUTTON = 3800;
+  static constexpr int ADC_NO_BUTTON = 3900;
   static constexpr unsigned long DEBOUNCE_DELAY = 5;
 
   static const char* BUTTON_NAMES[];

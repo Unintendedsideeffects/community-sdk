@@ -14,8 +14,18 @@ bool SDCardManager::begin() {
     if (Serial) Serial.printf("[%lu] [SD] SD card not detected\n", millis());
     initialized = false;
   } else {
-    if (Serial) Serial.printf("[%lu] [SD] SD card detected\n", millis());
-    initialized = true;
+    // sd.begin() can return true spuriously (e.g. MISO floating high).
+    // Verify the card is actually accessible by opening the root directory.
+    FsFile root = sd.open("/");
+    if (!root || !root.isDirectory()) {
+      root.close();
+      if (Serial) Serial.printf("[%lu] [SD] SD card reported ready but root not accessible\n", millis());
+      initialized = false;
+    } else {
+      root.close();
+      if (Serial) Serial.printf("[%lu] [SD] SD card detected\n", millis());
+      initialized = true;
+    }
   }
 
   return initialized;
@@ -71,12 +81,19 @@ String SDCardManager::readFile(const char* path) {
   }
 
   String content = "";
-  constexpr size_t maxSize = 50000;  // Limit to 50KB
-  size_t readSize = 0;
-  while (f.available() && readSize < maxSize) {
-    const char c = static_cast<char>(f.read());
-    content += c;
-    readSize++;
+  const size_t fileSize = f.size();
+  if (fileSize > 0) {
+    content.reserve(fileSize);
+  }
+
+  constexpr size_t chunkSize = 256;
+  char buffer[chunkSize];
+  while (f.available()) {
+    const int bytesRead = f.read(reinterpret_cast<uint8_t*>(buffer), chunkSize);
+    if (bytesRead <= 0) {
+      break;
+    }
+    content.concat(buffer, static_cast<unsigned int>(bytesRead));
   }
   f.close();
   return content;
@@ -154,21 +171,36 @@ bool SDCardManager::writeFile(const char* path, const String& content) {
     return false;
   }
 
-  // Remove existing file so we perform an overwrite rather than append
-  if (sd.exists(path)) {
-    sd.remove(path);
+  // Write to a sibling temp file first so a reset or power cut mid-write can
+  // never destroy the previous contents; the rename below is the only step
+  // that touches the real path.
+  String tmpPath(path);
+  tmpPath += ".tmp";
+  if (sd.exists(tmpPath.c_str())) {
+    sd.remove(tmpPath.c_str());
   }
 
   FsFile f;
-  if (!openFileForWrite("SD", path, f)) {
-    if (Serial) Serial.printf("[%lu] [SD] Path is not a directory\n", millis());
-    if (Serial) Serial.printf("Failed to open file for write: %s\n", path);
+  if (!openFileForWrite("SD", tmpPath.c_str(), f)) {
+    if (Serial) Serial.printf("Failed to open file for write: %s\n", tmpPath.c_str());
     return false;
   }
 
   const size_t written = f.print(content);
   f.close();
-  return written == content.length();
+  if (written != content.length()) {
+    sd.remove(tmpPath.c_str());
+    return false;
+  }
+
+  if (sd.exists(path)) {
+    sd.remove(path);
+  }
+  if (!sd.rename(tmpPath.c_str(), path)) {
+    sd.remove(tmpPath.c_str());
+    return false;
+  }
+  return true;
 }
 
 bool SDCardManager::ensureDirectoryExists(const char* path) {
