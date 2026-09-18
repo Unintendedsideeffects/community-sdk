@@ -35,6 +35,18 @@ bool SDCardManager::ready() const {
   return initialized;
 }
 
+uint64_t SDCardManager::freeBytes() {
+  if (!initialized) {
+    return 0;
+  }
+  const uint32_t clusters = sd.freeClusterCount();
+  const uint32_t bytesPerCluster = sd.bytesPerCluster();
+  if (bytesPerCluster == 0) {
+    return 0;
+  }
+  return static_cast<uint64_t>(clusters) * bytesPerCluster;
+}
+
 std::vector<String> SDCardManager::listFiles(const char* path, const int maxFiles) {
   std::vector<String> ret;
   if (!initialized) {
